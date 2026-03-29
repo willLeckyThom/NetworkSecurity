@@ -178,31 +178,32 @@ verification mechanism, the network cannot distinguish between a
 legitimate user and a malicious actor. The risk score is Likelihood 4
 and Impact 4, giving a total of \textbf{16 (High)}.
 
-To mitigate this attack, a VPN with mutual certificate-based
+To mitigate this attack, a VPN with certificate-based
 authentication should be implemented. This ensures that only legitimate
 users possessing valid certificates can establish a secure and trusted
 connection to the internal network.
 
 % ------------------------------------------------------------
-\subsection{A3 : RIPv2 Route Poisoning (Tampering)}
+\subsection{A3 : Passive Traffic Interception / Sniffing (Information Disclosure)}
 % ------------------------------------------------------------
 
-For this attack, an internal or already-compromised attacker manipulates
-routing information to redirect network traffic. The attack uses flow F6,
-which corresponds to routing updates exchanged via RIPv2 between R1, R2,
-and R3. Since no authentication is enabled in the initial configuration,
-any host present on one of the internal network segments (whether a
-malicious insider, a compromised workstation, or a machine that has
-already gained a foothold through a prior attack such as A1) can inject
-forged routing announcements. This leads to route poisoning and can
-enable man-in-the-middle attacks across the network, silently intercepting
-or altering traffic between the office and server zones. The risk score
-is Likelihood 3 and Impact 5, resulting in \textbf{15 (High)}.
+For this attack, the attacker passively captures network traffic to
+extract sensitive information. The attack exploits flows F1 and F3,
+which carry unencrypted communications between the external zone and
+the office network, and between the office network and the servers.
+In the absence of any VPN or transport-layer encryption, all traffic
+traverses the network in plaintext. An attacker positioned anywhere
+along the path --- including the Malicious PC on the same external
+segment as the Remote Employee --- can use a packet analyser such as
+Wireshark to silently read credentials, session tokens, HTTP requests
+and responses, or any other sensitive data exchanged across these
+flows. Unlike active attacks, sniffing leaves no trace on the target
+systems and is therefore particularly difficult to detect. The risk
+score is Likelihood 4 and Impact 4, resulting in \textbf{16 (High)}.
 
-To mitigate this attack, authentication mechanisms such as MD5 should
-be enabled for RIPv2. Additionally, route filtering using
-\texttt{distribute-list} should be configured to ensure that only
-expected and trusted routes are accepted.
+To mitigate this attack, a site-to-site VPN with certificate-based
+authentication should be deployed to encrypt all traffic between
+the Remote Employee and the office network (flow F1). For internal flows between the office network and the servers (flow F3), the firewall deployed in Milestone 1 reduces the attack surface by restricting access to authorised hosts only, limiting the potential for sniffing on that segment.
 
 % ------------------------------------------------------------
 \subsection{A4 : SYN/HTTP Flood against NGINX (Denial of Service)}
@@ -254,14 +255,14 @@ cell indicates the risk level.
 % ROW 4 : Catastrophic
 \hcell{modYellow}{Moderate}           {0}{4}
 \hcell{modYellow}{Moderate}           {1}{4}
-\hcell{highPink} {High\\{[A3][A5]}}   {2}{4}
+\hcell{highPink} {High\\{[A5]}}      {2}{4}
 \hcell{critRed}  {Critical\\{[A1]}}   {3}{4}
 \hcell{critRed}  {Critical}           {4}{4}
 % ROW 3 : Significant
 \hcell{lowGreen} {Low}                {0}{3}
 \hcell{modYellow}{Moderate}           {1}{3}
 \hcell{modYellow}{Moderate}           {2}{3}
-\hcell{highPink} {High\\{[A2]}}       {3}{3}
+\hcell{highPink} {High\\{[A2][A3]}}   {3}{3}
 \hcell{critRed}  {Critical}           {4}{3}
 % ROW 2 : Moderate
 \hcell{lowGreen} {Low}                {0}{2}
@@ -332,7 +333,7 @@ The table below summarises the position of each attack on the grid:
   \midrule
   A1 & Elevation of Privilege & 4 & 5 & 20 --- Critical \\
   A2 & Spoofing               & 4 & 4 & 16 --- High     \\
-  A3 & Tampering              & 3 & 5 & 15 --- High     \\
+  A3 & Information Disclosure & 4 & 4 & 16 --- High     \\
   A4 & Denial of Service      & 4 & 3 & 12 --- Elevated \\
   A5 & Elevation of Privilege & 3 & 5 & 15 --- High     \\
   \bottomrule
@@ -342,14 +343,13 @@ The table below summarises the position of each attack on the grid:
 \medskip\noindent
 \textbf{A1} (score 20) is the most critical attack: it is both easy
 to carry out and potentially devastating, as it gives an attacker
-direct control over a server. \textbf{A2} (score 16) ranks just
-below, in the High zone : it does not reach the Critical level
-because compromising the office PCs, while serious, has a lower
-impact than full server compromise. \textbf{A3} and \textbf{A5}
-(both score 15, High) require a precondition : being present on the
-internal network or having already compromised a host for A3, or
-having already compromised a server for A5, which lowers their
-likelihood. \textbf{A4} (score 12, Elevated) is easy to
+direct control over a server. \textbf{A2} and \textbf{A3} (scores 16,
+High) are both easy to execute from outside the network and directly
+target the confidentiality of the enterprise: A2 by impersonating a
+legitimate user, A3 by passively reading all unencrypted traffic.
+Both are directly mitigated by the VPN. \textbf{A5}
+(score 15, High) requires a precondition --- having already compromised
+a server --- which lowers its likelihood. \textbf{A4} (score 12, Elevated) is easy to
 execute but has a limited impact since the servers do not hold
 critical data in this initial setup.
 
@@ -370,8 +370,8 @@ that addresses it in Milestone~1.
      & Firewall: block external traffic towards R3 & 20 \\
   A2 & IP Spoofing (S)
      & Site-to-site VPN with certificates & 16 \\
-  A3 & RIPv2 route poisoning (T)
-     & MD5 auth on RIPv2 + distribute-list & 15 \\
+  A3 & Passive sniffing / plaintext traffic (I)
+     & VPN encryption + Firewall restrictions & 16 \\
   A4 & SYN/HTTP flood NGINX (D)
      & ACLs on R3 + NGINX rate limiting & 12 \\
   A5 & Server pivot to office (E)
@@ -382,8 +382,9 @@ that addresses it in Milestone~1.
 
 Attacks A1 and A2 are the most critical and directly motivate the
 two security components required in Milestone~1: the \textbf{Firewall}
-and the \textbf{VPN}. A3 and A5, while also serious, will be partially
-addressed as a side effect of the firewall deployment. A4 will be
+and the \textbf{VPN}. A3 is equally serious and is mitigated by
+the VPN for external flows and by the firewall for internal flows. A5, while serious, will be
+addressed as a direct effect of the firewall deployment. A4 will be
 more fully mitigated in Milestone~2 with the Web Application Firewall.
 
 \end{document}
