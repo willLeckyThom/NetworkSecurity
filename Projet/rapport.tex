@@ -1,0 +1,939 @@
+\documentclass[10pt,twocolumn]{article}
+
+% ── Page geometry ─────────────────────────────────────────────────────────────
+\usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=1.8cm, right=1.8cm,
+            columnsep=0.8cm]{geometry}
+
+% ── Core packages ─────────────────────────────────────────────────────────────
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{abstract}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{mdframed}
+\usepackage{listings}
+\usepackage{courier}
+\usepackage{caption}
+\usepackage{multicol}
+\usepackage{parskip}
+
+% ── Colors ────────────────────────────────────────────────────────────────────
+\definecolor{navyblue}{RGB}{31,56,100}
+\definecolor{steelblue}{RGB}{46,117,182}
+\definecolor{lightblue}{RGB}{214,228,247}
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{darkgray}{RGB}{89,89,89}
+\definecolor{alertbg}{RGB}{255,248,220}
+\definecolor{alertborder}{RGB}{204,153,0}
+
+% ── Hyperref ──────────────────────────────────────────────────────────────────
+\hypersetup{
+  colorlinks=true,
+  linkcolor=steelblue,
+  urlcolor=steelblue,
+  citecolor=steelblue
+}
+
+% ── Section heading styles ────────────────────────────────────────────────────
+\titleformat{\section}
+  {\large\bfseries\color{navyblue}}
+  {\thesection.}{0.5em}{}
+  [\vspace{-0.3em}\textcolor{steelblue}{\rule{\linewidth}{0.6pt}}]
+
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{steelblue}}
+  {\thesubsection}{0.5em}{}
+
+\titleformat{\subsubsection}
+  {\normalsize\bfseries\color{darkgray}}
+  {\thesubsubsection}{0.5em}{}
+
+\titlespacing*{\section}{0pt}{1.4ex plus .2ex}{0.8ex plus .1ex}
+\titlespacing*{\subsection}{0pt}{1.0ex plus .1ex}{0.5ex plus .1ex}
+\titlespacing*{\subsubsection}{0pt}{0.8ex}{0.3ex}
+
+% ── Abstract style ────────────────────────────────────────────────────────────
+\renewcommand{\abstractnamefont}{\normalfont\bfseries\color{navyblue}}
+\renewcommand{\abstracttextfont}{\normalfont\small\itshape}
+\setlength{\absleftindent}{0pt}
+\setlength{\absrightindent}{0pt}
+
+% ── Header / Footer ───────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{darkgray}{Network Security --- Certificate Authority Chain}}
+\fancyhead[R]{\small\textcolor{darkgray}{\thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% ── Listings (code blocks) ────────────────────────────────────────────────────
+\lstset{
+  basicstyle=\footnotesize\ttfamily,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{steelblue!40},
+  breaklines=true,
+  breakatwhitespace=true,
+  numbers=none,
+  xleftmargin=4pt,
+  xrightmargin=4pt,
+  aboveskip=4pt,
+  belowskip=4pt,
+}
+
+% ── Custom environments ───────────────────────────────────────────────────────
+\newmdenv[
+  linecolor=steelblue,
+  linewidth=1pt,
+  backgroundcolor=lightblue!40,
+  innerleftmargin=6pt,
+  innerrightmargin=6pt,
+  innertopmargin=5pt,
+  innerbottommargin=5pt,
+  skipabove=6pt,
+  skipbelow=6pt,
+]{infobox}
+
+\newmdenv[
+  linecolor=alertborder,
+  linewidth=1.2pt,
+  backgroundcolor=alertbg,
+  innerleftmargin=6pt,
+  innerrightmargin=6pt,
+  innertopmargin=5pt,
+  innerbottommargin=5pt,
+  skipabove=6pt,
+  skipbelow=6pt,
+]{alertbox}
+
+% ── List spacing ──────────────────────────────────────────────────────────────
+\setlist[itemize]{noitemsep, topsep=2pt, leftmargin=*}
+\setlist[enumerate]{noitemsep, topsep=2pt, leftmargin=*}
+
+% ── Paragraph spacing ─────────────────────────────────────────────────────────
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\title{%
+  \vspace{-1.5em}
+  {\LARGE\bfseries\color{navyblue}
+   Certificate Authority Chain and Deployment\\[4pt]
+   of a CA on a Linux Server}\\[6pt]
+  {\normalsize\color{darkgray}
+   Network Security Project --- Academic Report}
+}
+\author{%
+  \textbf{Author Name}\\
+  \small Department of Computer Science\\
+  \small \texttt{author@university.edu}
+}
+\date{\small\today}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+\twocolumn[
+  \maketitle
+  \vspace{-0.5em}
+  \begin{onecolabstract}
+    \noindent
+    This report presents the design, deployment, and validation of a
+    complete Public Key Infrastructure (PKI) on a Linux server using
+    OpenSSL. Starting from the theoretical foundations of X.509 certificates
+    and PKI trust models, it covers the full lifecycle of certificate
+    management: creation of a two-tier Certificate Authority hierarchy
+    (Root CA and Intermediate CA), issuance of server and client
+    end-entity certificates, certificate revocation via CRL, and the
+    deployment of Mutual TLS (mTLS) for bidirectional authentication.
+    The practical implementation demonstrates how mTLS strengthens
+    security beyond standard TLS by requiring both parties to present
+    valid certificates during the handshake, and examines its relevance
+    in modern Zero Trust architectures and microservice environments.
+    \smallskip
+  \end{onecolabstract}
+  \vspace{1em}
+  \hrule
+  \vspace{1em}
+]
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+
+\subsection{Objectives}
+
+This report aims to achieve the following:
+
+\begin{itemize}
+  \item Explain the structure and role of X.509 digital certificates in PKI.
+  \item Describe the components and trust models of Public Key Infrastructure.
+  \item Present the certificate signing and verification process in detail.
+  \item Provide a practical guide to deploying a root CA and intermediate CA
+        on a Linux server using OpenSSL.
+  \item Demonstrate how to issue end-entity certificates for TLS services.
+  \item Implement and validate Mutual TLS (mTLS) for bidirectional
+        authentication between client and server.
+\end{itemize}
+
+\subsection{Motivation}
+
+Secure communication on the Internet depends fundamentally on a trustworthy
+framework for managing digital identities. HTTPS, VPNs, email signing, and
+code signing all rely on X.509 certificates and Certificate Authorities. Yet
+the inner workings of PKI remain opaque to many practitioners. Beyond
+standard server authentication, the growing adoption of Zero Trust
+architectures makes client-side certificate authentication, as provided
+by mTLS, increasingly critical in modern deployments.
+
+\subsection{Report Structure}
+
+\begin{enumerate}
+  \item \textbf{Background:} X.509 certificates and the PKI framework.
+  \item \textbf{Certificate Signing \& Verification:} full lifecycle and
+        verification checks.
+  \item \textbf{CA Deployment on Linux:} setting up root and intermediate CAs,
+        issuing end-entity certificates, and configuring revocation.
+  \item \textbf{Mutual TLS:} theory, handshake mechanics, and use cases.
+\end{enumerate}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Background}
+
+\subsection{X.509 Certificates}
+
+An X.509 certificate is a digital document that binds a public key to a
+verified identity (a person, server, organization, or device). The
+certificate is signed by a Certification Authority (CA), allowing relying
+parties to trust its contents without prior contact with the owner.
+
+The X.509 standard defines three versions: v1, v2, and v3. Version~3 is
+universally adopted because it supports extensions that convey critical
+security metadata. Table~\ref{tab:cert-fields} summarizes the core fields.
+
+\begin{table}[h]
+\centering
+\caption{Core X.509 v3 Certificate Fields}
+\label{tab:cert-fields}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\columnwidth}{>{\bfseries\footnotesize}p{2.1cm}
+                                >{\footnotesize}X}
+\toprule
+Field & Description \\
+\midrule
+Version        & Format version (v1/v2/v3). \\
+Serial Number  & Unique identifier assigned by the CA. \\
+Sig.\ Algorithm& Algorithm used to sign (e.g.\ SHA-256/RSA). \\
+Issuer Name    & Distinguished Name (DN) of the issuing CA. \\
+Validity Period& The window of time in which the certificate is valid and trusted. \\
+Subject Name   & DN of the certificate owner. \\
+Public Key Info& Owner's public key and algorithm. \\
+Extensions     & Key Usage, SAN, Basic Constraints, etc. \\
+Signature      & CA's cryptographic signature over TBSCert (the certificate body). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsubsection{Version 3 Extensions}
+
+Version 3 extensions are one of the main reasons X.509 certificates are useful
+in real systems. The basic certificate fields identify the subject, issuer,
+and public key, but the extensions tell software \emph{how} the certificate
+may be used and what limits apply to it. Each extension has an identifier, a
+value, and a \emph{critical} flag. If an application does not understand a
+critical extension, it must reject the certificate rather than guess its
+meaning \cite{rfc5280}.
+
+In practice, extensions let a CA describe whether a certificate is for a web
+server, a client, an intermediate CA, or a root CA. They also help software
+build chains correctly, check revocation information, and apply naming or
+policy restrictions. For this reason, extensions are not just optional extra
+data; they are central to certificate validation \cite{rfc5280}.
+
+Some of the most important Version~3 extensions are the following:
+
+\begin{itemize}
+  \item \textbf{Key Usage:} This extension lists the cryptographic operations
+        allowed for the key, such as \texttt{digitalSignature},
+        \texttt{keyEncipherment}, \texttt{keyCertSign}, and
+        \texttt{cRLSign}. For example, a CA certificate should allow
+        certificate signing, while a normal TLS server certificate should not.
+  \item \textbf{Extended Key Usage (EKU):} EKU gives a more precise purpose to
+        the certificate, such as \texttt{serverAuth}, \texttt{clientAuth},
+        \texttt{codeSigning}, or \texttt{emailProtection}. In practice, both
+        Key Usage and EKU should be consistent with the role of the
+        certificate.
+  \item \textbf{Subject Key Identifier (SKI) and Authority Key Identifier
+        (AKI):} These two extensions help software link certificates together.
+        SKI identifies the subject's key, while AKI points to the key of the
+        issuing CA. They are especially useful when building and checking a
+        certificate chain.
+  \item \textbf{Certificate Policies:} This extension lists policy object
+        identifiers (OIDs) that describe the rules under which the certificate
+        was issued. Related extensions such as Policy Constraints and Inhibit
+        Any Policy help control policy processing in more complex PKI
+        environments.
+  \item \textbf{Subject Alternative Name (SAN):} SAN can contain DNS names, IP
+        addresses, email addresses, URIs, and other identities. In modern TLS,
+        SAN is the main place checked for hostname matching. RFC~5280 also
+        notes that if the subject field is empty, the SAN extension must be
+        present and marked critical \cite{rfc5280}.
+  \item \textbf{Basic Constraints:} This extension states whether a
+        certificate belongs to a CA by using \texttt{CA:TRUE} or
+        \texttt{CA:FALSE}. It may also include
+        \texttt{pathLenConstraint}, which limits how many subordinate CA
+        levels may appear below that certificate.
+  \item \textbf{Name Constraints:} This extension is mainly used in CA
+        certificates to restrict the names that subordinate certificates may
+        contain. For example, a CA can be limited to issuing certificates only
+        for a specific domain or namespace.
+  \item \textbf{CRL Distribution Points and Authority Information Access
+        (AIA):} These extensions tell clients where to find revocation and
+        issuer information. CRL Distribution Points give the location of the
+        certificate revocation list, while AIA may point to issuer
+        certificates or OCSP services used during validation.
+\end{itemize}
+
+Overall, Version~3 extensions make certificate validation more precise and
+more secure. They allow software to enforce the intended role of a
+certificate, distinguish between CA and end-entity certificates, and obtain
+supporting information such as revocation status and issuer details. Without
+these extensions, modern PKI would be much harder to manage safely
+\cite{rfc5280}.
+
+Certificates are typically written in one of two formats:
+\begin{itemize}
+    \item \textbf{Distinguished Encoding Rules (DER):} a binary encoding format.
+    \item \textbf{Privacy Enhanced Mail (PEM):} Base64-encoded DER with header
+          and footer lines, commonly used in configuration files.
+\end{itemize}
+
+\subsection{Public Key Infrastructure (PKI)}
+
+PKI is the overarching framework for managing the issuance, distribution,
+validation, and revocation of digital certificates. Beyond cryptographic
+algorithms, PKI defines the policies, roles, and procedures that allow parties
+to establish trust across untrusted networks.
+
+\subsubsection{PKI Trust Models}
+
+\begin{itemize}
+  \item \textbf{Hierarchical (Single Root):} a single root CA delegates trust
+        downward to subordinate CAs. Used by public web PKIs (e.g.\ browser
+        root stores).
+  \item \textbf{Cross-Certification (Mesh):} multiple independent CAs establish
+        trust relationships by mutually issuing certificates to one another.
+        Instead of relying on a single root authority, trust is distributed
+        among participating organizations.
+  \item \textbf{Bridge CA:} a Bridge Certification Authority acts as a central
+        hub that connects multiple independent PKI domains. Rather than every
+        CA cross-certifying with every other CA, each participating PKI only
+        establishes trust with the bridge CA.
+\end{itemize}
+
+\subsubsection{Main PKI Components}
+
+A Public Key Infrastructure (PKI) consists of several components that work
+together to establish, distribute, validate, and revoke digital trust.
+
+\begin{itemize}
+  \item \textbf{Certificate Authority (CA):} the trusted entity responsible for
+        issuing, digitally signing, renewing, and revoking certificates. The
+        CA binds a subject's identity to its public key, thereby acting as the
+        root of trust within the PKI hierarchy.
+
+  \item \textbf{Registration Authority (RA):} an entity that performs identity
+        verification on behalf of the CA. The RA validates information provided
+        by certificate applicants before forwarding approved requests to the
+        CA for certificate issuance.
+
+  \item \textbf{Digital Certificates:} electronic documents conforming
+        typically to the X.509 standard. A certificate contains identifying
+        information about the subject, the subject's public key, validity
+        period, certificate serial number, issuer information, and the CA's
+        digital signature.
+
+  \item \textbf{Certificate Signing Request (CSR):} a structured request
+        generated by an applicant when requesting a certificate. The CSR
+        contains the applicant's public key and identifying information
+        (such as domain name or organization details) and is digitally signed
+        using the applicant's private key to prove possession of that key.
+
+  \item \textbf{Certificate Repository:} a centralized directory service
+        (commonly LDAP-based) used to store and distribute issued certificates,
+        CA certificates, and Certificate Revocation Lists (CRLs). It allows
+        relying parties to retrieve certificates required for validation.
+
+  \item \textbf{Revocation Services:} mechanisms used to determine whether a
+        certificate is still trusted before its expiration date. Common methods
+        include Certificate Revocation Lists (CRLs) and the Online Certificate
+        Status Protocol (OCSP).
+
+  \item \textbf{Certificate Policy (CP) / Certification Practice Statement
+        (CPS):} formal documents defining the PKI's security requirements,
+        trust model, operational procedures, identity verification processes,
+        and certificate management practices.
+\end{itemize}
+
+\subsubsection{PKI Operation Sequence}
+
+The certificate issuance and validation lifecycle within a PKI typically
+follows the sequence below:
+
+\begin{enumerate}
+  \item Generate an asymmetric cryptographic key pair consisting of a public
+        key and a private key.
+  \item Create a Certificate Signing Request (CSR) containing the public key
+        and subject identity information. The CSR is digitally signed using the
+        private key to prove ownership and possession of the corresponding key.
+  \item Submit the CSR to a Registration Authority (RA) or directly to the CA.
+  \item The RA verifies the applicant's identity according to the PKI policy
+        and forwards the validated request to the CA.
+  \item The CA validates the request and digitally signs the certificate using
+        its private key, thereby binding the applicant's identity to the public
+        key.
+  \item The signed certificate is issued and delivered to the requester, who
+        installs it on a server, device, application, or user system.
+  \item The certificate may also be published to a certificate repository so
+        that relying parties can retrieve it when necessary.
+  \item During communication, relying parties validate the certificate by
+        checking the CA signature, certificate chain, validity period,
+        hostname or subject information, and revocation status using CRL or
+        OCSP services.
+  \item If a certificate is compromised, expired, or no longer trusted, the CA
+        revokes it and updates revocation information accordingly.
+\end{enumerate}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Certificate Signing and Verification}
+
+The X.509 PKI framework, as standardized in ITU-T Recommendation X.509 and
+RFC~5280 \cite{rfc5280}, establishes a hierarchical trust model wherein
+digital certificate signing serves as the fundamental mechanism for
+authenticating cryptographic identities. Through the application of asymmetric
+cryptography, Certification Authorities generate unforgeable digital signatures
+that cryptographically bind entity identities to their respective public keys.
+This process, which involves the generation of a signed ASN.1-encoded
+TBSCertificate structure, provides both data origin authentication and message
+integrity through mathematical verification of the CA's signature using
+standardized algorithms such as RSA-PKCS\#1~v1.5 or ECDSA \cite{rfc5280}.
+
+The verification process constitutes a critical component of secure
+communication protocols, including the TLS handshake \cite{rfc8446}. During
+certificate chain validation, relying parties must not only verify the digital
+signature's mathematical correctness but also enforce temporal validity
+constraints, key usage policies, and path validation rules as specified in
+RFC~5280 Section~6. This multi-faceted verification process ensures that only
+properly authorized entities can participate in secure communications, while
+effectively mitigating well-known attacks such as man-in-the-middle (MITM)
+interposition.
+
+\subsection{Certificate Signing Process}
+
+\subsubsection{Key Pair Generation}
+
+Before creating a CSR, the end-entity must generate an asymmetric key pair
+using cryptographic software. The private key is kept secret to sign documents
+and decrypt data, while the public key is included in the CSR. Two principal
+algorithms are used:
+
+\begin{itemize}
+  \item \textbf{RSA:} used for both encryption and digital signatures.
+        Recommended key sizes are 2048\,bits (minimum) or 4096\,bits for
+        longer-lived certificates.
+  \item \textbf{ECDSA:} a signature-only algorithm offering equivalent security
+        with shorter keys. Curve P-256 is standard for TLS certificates
+        \cite{rfc5280}.
+\end{itemize}
+
+Some good practices can be adopted to ensure the secure storage of the private
+key:
+
+\begin{itemize}
+  \item Restrictive file permissions on Linux.
+  \item Key encryption with a strong passphrase.
+\end{itemize}
+
+\subsubsection{CSR Structure (PKCS\#10)}
+
+A Certificate Signing Request is the formal process of applying for a digital
+certificate from a Certificate Authority. The CSR structure is defined in
+PKCS\#10 \cite{pkcs10}, a security standard produced by RSA Data Security
+Inc. It consists of a subject (DN info), the subject public key and its
+algorithm, and a set of attributes. These fields are encoded using ASN.1
+(Abstract Syntax Notation~1) and DER (Distinguished Encoding Rules), which
+are binary encoding standards used in X.509.
+
+A CSR contains three main parts:
+
+\begin{itemize}
+  \item \textbf{Certification Request Information:} contains pertinent
+        information such as the public key, Common Name, Organization Name,
+        Organizational Unit, Country, key type, and key size.
+  \item \textbf{Signature Algorithm Identifier:} specifies the algorithm used
+        to sign the CSR.
+  \item \textbf{Digital Signature:} proves possession of the private key. The
+        requester signs the CSR with their private key, allowing the CA to
+        verify they control it.
+\end{itemize}
+
+The information provided in the CSR must be accurate and match the existing
+domain registration. Otherwise, certificate issuance delays or even rejections
+may occur.
+
+\subsubsection{Submission and Identity Validation}
+
+Once the CSR is completed, it is submitted to a trusted Certificate Authority,
+which can be either internal (e.g.\ a corporate PKI) or external (e.g.\
+Let's Encrypt or DigiCert). The CA performs identity verification, and the
+exact process depends on the type of certificate requested:
+
+\begin{itemize}
+  \item \textbf{Domain Validation (DV):} the CA verifies only that the
+        applicant controls the domain name. Verification is usually automated
+        through an email challenge, a DNS TXT record, or an HTTP file upload.
+        DV certificates are fast and inexpensive to issue, but they do not
+        verify the identity of the organization behind the domain.
+
+  \item \textbf{Organization Validation (OV):} the CA verifies both domain
+        ownership and the legal existence of the organization. This may include
+        checking business registries, verifying the organization's name,
+        address, and registration in official databases, and conducting phone
+        verification with authorized personnel. OV certificates provide
+        stronger identity assurance than DV certificates.
+
+  \item \textbf{Extended Validation (EV):} the CA performs strict identity
+        verification, including legal, physical, and operational checks of the
+        organization. There must be confirmation that the person requesting the
+        certificate is authorized to act on behalf of the organization. EV
+        certificates provide the highest traditional level of trust and are
+        commonly used by banks, governments, and large organizations.
+\end{itemize}
+
+\subsubsection{Certificate Issuance}
+
+Once validation passes, the CA constructs the TBSCertificate structure in
+ASN.1, populates all fields and extensions, computes a cryptographic hash, and
+signs it with the CA private key using the chosen algorithm
+(e.g.\ SHA-256/RSA or ECDSA P-256). The complete CSR structure is digitally
+signed by the CA using the CA's private key and a chosen signature algorithm.
+The signed certificate is then returned to the requester in PEM or DER format.
+
+\subsection{Certificate Verification Process}
+
+To ensure that a digital certificate is valid, the client must proceed through
+a multi-step verification process \cite{rfc5280}. This involves signature
+validation, chain verification, and revocation status checks. Skipping any
+step opens the door to attacks such as MITM or certificate substitution.
+
+\subsubsection{Basic Certificate Checks}
+
+\begin{itemize}
+  \item \textbf{Validity Period:} a certificate contains a \texttt{Not Before}
+        and a \texttt{Not After} timestamp. The verifier must check that the
+        certificate is within its active date range.
+  \item \textbf{Subject and Issuer Name:} the Subject field must match the
+        entity, and the Issuer field must match the expected Certificate
+        Authority.
+  \item \textbf{Key Usage and Extended Key Usage (EKU):} the verifier must
+        ensure that the certificate is used for its intended purpose. For
+        example, a TLS server certificate should have \texttt{Server
+        Authentication} in its EKU.
+\end{itemize}
+
+\subsubsection{Digital Signature Verification}
+
+Every certificate is digitally signed by its issuing CA. The signature proves
+that the CA has validated the certificate's contents. First, the certificate's
+signed data and signature are extracted. The issuer's public key is then used
+to verify the signature mathematically. If the signature is valid, it confirms
+that the certificate was issued by that CA and that its content was not
+modified since it was signed.
+
+\subsubsection{Certificate Chain Validation}
+
+Most certificates are not directly signed by a root CA but by intermediate
+CAs. The verifier must validate the entire chain of trust \cite{rfc5280}.
+
+The process starts with the end-entity certificate belonging to the
+website or server. The verifier retrieves the issuer's certificate, or
+intermediate CA certificate, and repeats this process until a trusted root CA
+is reached. For each certificate in the chain, the verifier must:
+
+\begin{enumerate}
+  \item Verify the digital signature.
+  \item Check the validity period.
+  \item Ensure no revocation (via CRL or OCSP).
+  \item Confirm basic constraints (e.g.\ intermediate CA must have
+        \texttt{CA:TRUE}).
+  \item Confirm the root CA exists in the client's trust store.
+\end{enumerate}
+
+\begin{alertbox}
+\footnotesize\textbf{Security note:} A chain is only as strong as its weakest
+link. If an intermediate CA is compromised, all certificates below it must be
+revoked. This is why root CAs are kept \emph{offline} and intermediate CAs
+handle day-to-day operations.
+\end{alertbox}
+
+\subsubsection{Revocation Status Checking}
+
+Even if a certificate is properly signed, it may have been revoked due to
+compromise or expiration. Two main revocation methods exist:
+
+\begin{itemize}
+  \item \textbf{CRL (Certificate Revocation List):} a list of revoked
+        certificates published by the CA. The verifier downloads this CRL and
+        checks if the certificate's serial number is listed.
+  \item \textbf{OCSP (Online Certificate Status Protocol):} a real-time query
+        to the CA to check certificate status \cite{rfc6960}. It returns
+        \texttt{Good}, \texttt{Revoked}, or \texttt{Unknown}. If a certificate
+        is found in the CRL or marked as revoked, it is not trusted.
+        \emph{OCSP Stapling} allows the server to cache and present a signed
+        OCSP response, eliminating client round-trips and improving privacy.
+\end{itemize}
+
+\subsubsection{Hostname Verification}
+
+For HTTPS and other TLS connections, the certificate's Common Name (CN) or
+Subject Alternative Name (SAN) must match the domain being accessed
+\cite{rfc2818}. For example, if a user visits \texttt{https://example.com}
+and the certificate is issued for \texttt{example.org}, the connection will
+be rejected. Modern clients rely primarily on the SAN extension for this
+check, as the legacy CN field is no longer used for hostname matching in
+current browsers.
+
+\subsection{Role in TLS Secure Communication}
+
+X.509 certificates are used to secure communications between a client (such
+as a web browser) and a web server. When a user connects to a website using
+HTTPS, the web server presents a digital certificate compliant with the X.509
+standard. This certificate includes information about the server's identity
+(domain name), its public key, and a digital signature issued by a Certificate
+Authority. The client then verifies the validity of the certificate by walking
+up the certificate chain to a pre-installed trusted root authority in the
+operating system or browser.
+
+During a TLS~1.3 handshake \cite{rfc8446}, the server transmits its
+certificate chain immediately after the Server Hello. The client performs all
+the checks described above, and only on full success does it proceed to derive
+session keys. This mechanism provides:
+
+\begin{itemize}
+  \item \textbf{Authentication:} the user can be sure they are communicating
+        with the legitimate website and not an impostor.
+  \item \textbf{Confidentiality:} data exchanged cannot be read or intercepted
+        by third parties.
+  \item \textbf{Integrity:} any alteration in the transmitted messages can be
+        detected.
+\end{itemize}
+
+As such, X.509 certificates are essential for securing web traffic, preventing
+attacks such as man-in-the-middle and DNS spoofing, and establishing trust
+between users and online services.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{CA Deployment on a Linux Server}
+
+\subsection{Architecture Overview}
+
+A standard deployment uses a \textbf{two-tier hierarchy}:
+
+\begin{itemize}
+  \item \textbf{Root CA} --- kept offline on an air-gapped machine or HSM.
+        Only used to sign the intermediate CA certificate.
+  \item \textbf{Intermediate CA} --- online, used for day-to-day certificate
+        issuance. Compromise of the intermediate CA does not expose the
+        root key.
+\end{itemize}
+
+\begin{infobox}
+\footnotesize
+\textbf{Best practice:} generate and store the root CA private key on an
+air-gapped machine or HSM. Bring it online \emph{only} to sign intermediate
+CA certificates. Store backups in separate physical locations.
+\end{infobox}
+
+\subsection{Directory Structure}
+
+A well-organized directory structure is essential for auditability. The
+working directory for the root CA should contain the following:
+
+\begin{itemize}
+  \item \texttt{certs/} --- issued certificates.
+  \item \texttt{crl/} --- Certificate Revocation Lists.
+  \item \texttt{newcerts/} --- archive of all signed certificates.
+  \item \texttt{private/} --- private keys, with restricted permissions.
+  \item \texttt{index.txt} --- the certificate database.
+  \item \texttt{serial} --- the next serial number to be assigned.
+  \item \texttt{openssl.cnf} --- the root CA configuration file.
+  \item \texttt{intermediate/} --- the intermediate CA, with the same layout.
+\end{itemize}
+
+\subsection{Step-by-Step Deployment}
+
+\subsubsection{Step 1 --- Create the Root CA}
+
+The first step is to generate the root CA private key, protected with
+AES-256 encryption. A self-signed root certificate is then created with a
+long validity period (typically 20 years), using the \texttt{v3\_ca}
+extensions defined in the configuration file. The resulting certificate
+should be verified to confirm that all fields and extensions are correct.
+
+\subsubsection{Step 2 --- Create the Intermediate CA}
+
+An intermediate CA key is generated in the same way as the root key. A CSR
+is then created for the intermediate CA and submitted to the root CA for
+signing. The root CA signs the intermediate certificate using the
+\texttt{v3\_intermediate\_ca} extensions, which include
+\texttt{CA:TRUE} and an appropriate \texttt{pathLenConstraint}. Finally,
+a certificate chain bundle is assembled by concatenating the intermediate
+certificate and the root certificate into a single file, which is provided
+to relying parties during TLS handshakes.
+
+\subsubsection{Step 3 --- Issue End-Entity Certificates}
+
+A server key and CSR are generated for the target service. The CSR must
+include the Subject Alternative Name (SAN) extension specifying the domain
+names or IP addresses the certificate will cover. The intermediate CA signs
+the certificate using the \texttt{server\_cert} extensions, which set
+\texttt{CA:FALSE}, restrict key usage to \texttt{digitalSignature} and
+\texttt{keyEncipherment}, and set the Extended Key Usage to
+\texttt{serverAuth}. The signed certificate, private key, and chain bundle
+are then deployed to the web server (e.g.\ Nginx or Apache).
+
+\subsubsection{Step 4 --- Configure Revocation (CRL \& OCSP)}
+
+An initial CRL is generated and published at the URL specified in the
+\texttt{crlDistributionPoints} extension of issued certificates. When a
+certificate must be revoked, it is marked as revoked in the CA database and
+the CRL is regenerated and republished. For real-time revocation queries, an
+OCSP responder is deployed and its URL is included in the
+Authority Information Access (AIA) extension of issued certificates.
+
+\subsection{Key OpenSSL Configuration}
+
+The \texttt{openssl.cnf} file controls all CA behavior. The
+\texttt{[ v3\_ca ]} section defines the extensions applied to CA
+certificates, including \texttt{CA:TRUE}, key usage for certificate and CRL
+signing, and key identifier extensions. The \texttt{[ server\_cert ]}
+section defines end-entity certificate extensions, setting \texttt{CA:FALSE},
+restricting key usage, and requiring a \texttt{subjectAltName} entry.
+
+\begin{alertbox}
+\footnotesize\textbf{SAN is mandatory.} Modern browsers reject certificates
+that lack a Subject Alternative Name, even if the Common Name matches.
+Always include \texttt{subjectAltName} in server certificate configurations.
+\end{alertbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+% NEW SECTION — MUTUAL TLS
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Mutual TLS (mTLS)}
+
+\subsection{Definition and Motivation}
+
+Standard TLS provides \emph{one-way} authentication: the server presents a
+certificate to the client, which verifies it against a trusted root CA. The
+client, however, remains anonymous to the server. This is sufficient for
+public-facing websites, where the server does not need to know \emph{who}
+is connecting---only that the communication is confidential.
+
+Mutual TLS (mTLS) extends this model to \emph{two-way} authentication.
+Both the server and the client present X.509 certificates, and both verify
+each other's certificate against a trusted CA before the connection is
+established. Neither party can impersonate the other, and an attacker who
+intercepts the channel cannot participate without a valid certificate issued
+by the trusted CA.
+
+This bidirectional trust is particularly relevant in environments where the
+identity of the connecting entity, not just the confidentiality of the
+channel, must be cryptographically guaranteed.
+
+\subsection{mTLS Handshake Mechanics}
+
+In a standard TLS~1.3 handshake \cite{rfc8446}, the server sends its
+certificate chain after the \texttt{ServerHello} message. The client
+verifies it and, on success, derives session keys. In mTLS, the server
+additionally sends a \texttt{CertificateRequest} message, which signals
+that the client must also authenticate. The extended handshake proceeds
+as follows:
+
+\begin{enumerate}
+  \item The client sends \texttt{ClientHello}.
+  \item The server responds with \texttt{ServerHello}, its certificate chain,
+        and a \texttt{CertificateRequest}.
+  \item The client verifies the server certificate against its trust store.
+  \item The client sends its own certificate chain in response to the
+        \texttt{CertificateRequest}.
+  \item The client sends a \texttt{CertificateVerify} message, containing a
+        signature over the handshake transcript produced with its private key.
+        This proves that the client possesses the private key corresponding
+        to the public key in its certificate.
+  \item The server verifies the client certificate against its configured CA
+        and checks the \texttt{CertificateVerify} signature.
+  \item Both parties derive session keys and the connection proceeds.
+\end{enumerate}
+
+If either certificate fails validation, due to an invalid signature,
+expired validity, revoked status, or missing \texttt{clientAuth} in the EKU
+of the client certificate, the handshake is aborted and the connection is
+rejected.
+
+\begin{infobox}
+\footnotesize
+\textbf{Key extension:} client certificates used in mTLS must include
+\texttt{clientAuth} in their Extended Key Usage field. In our deployment,
+this is set in the \texttt{[ client\_cert ]} block of
+\texttt{openssl.cnf}.
+\end{infobox}
+
+\subsection{Comparison: TLS vs.\ mTLS}
+
+Table~\ref{tab:tls-mtls} summarizes the key differences between standard
+TLS and mTLS.
+
+\begin{table}[h]
+\centering
+\caption{TLS vs.\ mTLS comparison}
+\label{tab:tls-mtls}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\columnwidth}{>{\bfseries\footnotesize}p{2.2cm}
+                                >{\footnotesize}X
+                                >{\footnotesize}X}
+\toprule
+ & \textbf{TLS} & \textbf{mTLS} \\
+\midrule
+Server auth   & Yes & Yes \\
+Client auth   & No  & Yes (certificate) \\
+Client anon.  & Yes & No \\
+Handshake     & Standard & Extended (+CertReq) \\
+Typical use   & Public websites & APIs, microservices, VPNs \\
+Revocation    & Server cert & Both certs \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Relevance in Modern Network Security}
+
+mTLS has become a foundational building block in several current security
+architectures:
+
+\begin{itemize}
+  \item \textbf{Zero Trust Architecture:} the Zero Trust model assumes that
+        no entity---inside or outside the network perimeter---is trusted by
+        default. Every connection must be authenticated and authorized
+        explicitly. mTLS provides the cryptographic identity layer that
+        enables this, ensuring that even an attacker who has gained access
+        to the internal network cannot establish connections without a valid
+        certificate.
+
+  \item \textbf{Microservice communication:} in distributed systems, services
+        communicate over internal networks that may be shared or untrusted.
+        Service meshes such as Istio and Linkerd use mTLS transparently
+        between every pair of services, so that each service can verify it
+        is talking to a legitimate peer and not a compromised component.
+
+  \item \textbf{API security:} enterprise APIs increasingly require client
+        certificates instead of---or in addition to---API tokens. Certificate-
+        based authentication is stronger than bearer tokens because the private
+        key never leaves the client and cannot be stolen from a database.
+
+  \item \textbf{IoT device authentication:} in IoT deployments, each device
+        is provisioned with a unique certificate at manufacture time. When
+        the device connects to a backend server, mTLS ensures that only
+        legitimate, enrolled devices are accepted, preventing rogue device
+        injection.
+\end{itemize}
+
+\subsection{Certificate Validity and Renewal}
+
+One operational challenge of mTLS is certificate lifecycle management.
+Certificate authorities and browser requirements have progressively shortened
+maximum validity periods: from several years before 2015, to 398 days by
+2020, and proposals from major vendors now target 47 days or fewer
+\cite{rfc5280}. Short-lived certificates limit the window of exposure if a
+private key is compromised, but they require automated renewal processes to
+avoid service disruption.
+
+In our deployment, renewal is handled by a scheduled script executed via
+\texttt{cron}, the Linux task scheduler. The script checks the remaining
+validity of each certificate, generates a new key and CSR if renewal is due,
+submits the CSR to the Intermediate CA, verifies the resulting certificate,
+and performs a graceful reload of the web server---all without manual
+intervention. This approach mirrors the automation used by widely deployed
+systems such as Let's Encrypt's \texttt{certbot}, which renews certificates
+automatically when fewer than 30 days of validity remain.
+
+\begin{alertbox}
+\footnotesize\textbf{Operational note:} in mTLS deployments, \emph{both}
+the server and client certificates must be renewed before expiry. An expired
+client certificate causes the same handshake failure as an invalid one.
+Automated renewal must therefore cover the full certificate inventory, not
+just the server side.
+\end{alertbox}
+
+\subsection{Limitations of mTLS}
+
+Despite its security benefits, mTLS introduces operational complexity that
+must be carefully managed:
+
+\begin{itemize}
+  \item \textbf{Certificate distribution:} every client must be provisioned
+        with a valid certificate before it can connect. In large deployments
+        this requires a scalable enrollment process, often handled by an
+        automated PKI management system.
+  \item \textbf{Revocation propagation:} if a client certificate is
+        compromised, it must be revoked and the CRL or OCSP responder
+        updated promptly. Until the revocation is published, the compromised
+        certificate remains usable.
+  \item \textbf{Compatibility:} standard web browsers do not present client
+        certificates automatically. mTLS is therefore suited to machine-to-
+        machine communication rather than general user-facing web traffic.
+  \item \textbf{Overhead:} the additional certificate exchange and verification
+        steps add a small latency cost to connection establishment, though
+        this is negligible for most applications.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{thebibliography}{9}
+
+\bibitem{rfc5280}
+D.~Cooper et al.,
+\textit{Internet X.509 PKI Certificate and CRL Profile},
+RFC~5280, IETF, May~2008.
+
+\bibitem{rfc2818}
+E.~Rescorla,
+\textit{HTTP Over TLS},
+RFC~2818, IETF, May~2000.
+
+\bibitem{rfc6960}
+S.~Santesson et al.,
+\textit{Online Certificate Status Protocol --- OCSP},
+RFC~6960, IETF, June~2013.
+
+\bibitem{rfc8446}
+E.~Rescorla,
+\textit{The Transport Layer Security (TLS) Protocol Version 1.3},
+RFC~8446, IETF, August~2018.
+
+\bibitem{pkcs10}
+RSA Laboratories,
+\textit{PKCS \#10: Certification Request Syntax Standard},
+Version~1.7, 2000.
+
+\bibitem{itu509}
+ITU-T,
+\textit{Recommendation X.509: The Directory --- Public-Key and
+Attribute Certificate Frameworks}, 2019.
+
+\end{thebibliography}
+
+\end{document}
