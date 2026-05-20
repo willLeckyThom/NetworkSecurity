@@ -936,4 +936,116 @@ Attribute Certificate Frameworks}, 2019.
 
 \end{thebibliography}
 
+% ─────────────────────────────────────────────────────────────────────────────
+% AI STRATEGY SECTION
+% ─────────────────────────────────────────────────────────────────────────────
+\section{AI Strategy}
+
+\subsection{Tools Used}
+
+Throughout this project, the primary AI tool used was \textbf{Claude}
+(Anthropic). It was used in three distinct roles: assistance with
+implementation, support for report writing, and guidance for information
+retrieval with verifiable sources.
+
+\subsection{Implementation Assistance}
+
+For the practical deployment of the CA infrastructure, mTLS configuration,
+and the certificate renewal script, Claude was used as a technical assistant
+rather than a code generator. The approach followed was to provide the AI
+with the full context of the task---the existing directory structure, the
+relevant \texttt{openssl.cnf} sections, and the precise objective---and to
+ask for targeted help on specific steps, such as the correct flags for a
+given OpenSSL command or the structure of a particular Nginx directive.
+
+Every command and script produced with AI assistance was subsequently
+executed and tested on the actual deployment environment. Understanding the
+output was a requirement: if a command worked but its behaviour was not
+fully understood, it was not accepted. This ensured that the implementation
+reflects genuine understanding rather than blind execution of generated code.
+
+\subsection{Report Writing}
+
+Claude was also used to support the writing of this report. Its role was
+limited to reformulation and grammar correction: sections were drafted by
+the group, then submitted to the AI with instructions to improve clarity,
+fix grammatical errors, or rephrase awkward sentences---while preserving
+the original meaning and technical content. The ideas, structure, and
+technical judgements in this report are entirely our own. Re-reading each
+revised paragraph against the original draft ensured that no content was
+altered beyond stylistic improvement and that no hallucinated or inaccurate
+statements were introduced.
+
+\subsection{Information Retrieval and Source Verification}
+
+When researching topics such as the mTLS handshake mechanics, the evolution
+of certificate validity periods, or the role of mTLS in Zero Trust
+architectures, Claude was asked to provide not only explanations but also
+references to primary sources: RFCs, official documentation, and peer-reviewed
+material. Information obtained this way was cross-checked against the cited
+sources before being included in the report. For example, the description
+of the TLS~1.3 handshake in Section~5 was verified against RFC~8446
+\cite{rfc8446}, and the X.509 extension semantics were checked against
+RFC~5280 \cite{rfc5280}. Any claim that could not be traced to a verifiable
+source was either removed or reformulated with appropriate hedging.
+
+\subsection{Prompt Optimisation}
+
+A key lesson learned early in the project was that the quality of AI output
+is directly proportional to the precision and completeness of the prompt.
+Vague or open-ended prompts tend to produce generic answers that require
+significant correction. The approach adopted was therefore to make every
+prompt as specific as possible, providing all relevant context upfront:
+the current state of the deployment, the exact file or configuration
+section in question, the error message or behaviour observed, and the
+precise expected outcome. Rather than asking the AI to \emph{find} a
+solution, prompts were structured so that the AI had all the information
+needed to \emph{confirm or refine} a solution already partially formed.
+This reduced the risk of hallucination and kept the AI's role firmly in the
+position of assistant rather than decision-maker.
+
+\begin{infobox}
+\footnotesize
+\textbf{Example --- imprecise prompt:}
+\textit{``How do I configure mTLS?''}\\[4pt]
+\textbf{Example --- precise prompt:}
+\textit{``We have an Nginx server with a two-tier PKI (Root CA and
+Intermediate CA built with OpenSSL). The client certificate was issued
+using the \texttt{client\_cert} extension block with
+\texttt{clientAuth} in EKU. What is the minimal Nginx configuration
+to enforce mandatory client certificate verification using
+\texttt{ssl\_verify\_client on}, pointing to our
+\texttt{ca-chain.cert.pem} file, with a verify depth of 2?''}
+\end{infobox}
+
+\subsection{Contribution to Exam Preparation}
+
+Beyond the practical tasks, Claude served as a personal tutor during the
+study phase. Concepts encountered in the course slides that were not
+immediately clear---such as the role of \texttt{pathLenConstraint},
+the difference between CRL and OCSP Stapling, or the mechanics of the
+mTLS handshake---were explored interactively. Unlike a static textbook,
+the AI could adjust its level of explanation, provide concrete analogies,
+and answer follow-up questions immediately. This made it a useful complement
+to the lecture material when preparing for the individual questions expected
+during the oral defence.
+
+\subsection{Limitations and Critical Assessment}
+
+The use of AI assistance also highlighted several limitations that required
+active management:
+
+\begin{itemize}
+  \item \textbf{Hallucination risk:} the AI occasionally produced plausible
+        but incorrect technical details, particularly for specific OpenSSL
+        command flags or Nginx directive names. Systematic testing of every
+        command in the actual environment was the primary mitigation.
+  \item \textbf{Outdated information:} AI models have a knowledge cutoff and
+        may not reflect the most recent changes in standards or tooling.
+        For time-sensitive facts---such as current maximum certificate
+        validity periods---primary sources and recent official documentation
+        were always consulted.
+  
+\end{itemize}
+
 \end{document}
