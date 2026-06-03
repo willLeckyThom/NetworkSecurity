@@ -131,9 +131,11 @@
    Network Security Project --- Academic Report}
 }
 \author{%
-  \textbf{Author Name}\\
-  \small Department of Computer Science\\
-  \small \texttt{author@university.edu}
+  \textbf{Fernandez Ojeda Franklin 000541971} \\
+  \textbf{Lecky-Thompson William 000613648} \\
+  \textbf{Otto Aleksandra 000569128} \\
+  \textbf{Rafaat Moheeb Eskandar Abanoub 000567614} \\
+  \textbf{Vanderslagmolen Moïra 000547486} \\
 }
 \date{\small\today}
 
@@ -862,21 +864,44 @@ maximum validity periods: from several years before 2015, to 398 days by
 private key is compromised, but they require automated renewal processes to
 avoid service disruption.
 
-In our deployment, renewal is handled by a scheduled script executed via
-\texttt{cron}, the Linux task scheduler. The script checks the remaining
-validity of each certificate, generates a new key and CSR if renewal is due,
-submits the CSR to the Intermediate CA, verifies the resulting certificate,
-and performs a graceful reload of the web server---all without manual
-intervention. This approach mirrors the automation used by widely deployed
-systems such as Let's Encrypt's \texttt{certbot}, which renews certificates
-automatically when fewer than 30 days of validity remain.
+In our deployment, renewal is handled by a Bash script executed daily via
+\texttt{cron}, the Linux task scheduler. The script is idempotent: it
+inspects every certificate in its inventory and triggers a renewal only
+when the remaining validity falls below a 30-day threshold, mirroring the
+behaviour of Let's Encrypt's \texttt{certbot}. When renewal is required,
+the script generates a fresh key pair and a new CSR, submits it to the
+Intermediate CA, and verifies the resulting certificate against the chain
+\emph{before} swapping any live files. The previous certificate and key
+are first copied to a timestamped backup directory, and Nginx is reloaded
+only after \texttt{nginx -t} confirms that the new configuration is valid.
+If any of these checks fails, the previous certificate remains in place
+and the service is not disrupted.
+
+A separate weekly job regenerates the Certificate Revocation List well
+before its 30-day \texttt{nextUpdate} boundary, since an expired CRL would
+cause Nginx to reject every connection regardless of the validity of the
+end-entity certificates. The two jobs are kept on independent schedules
+because they concern different state---the end-entity certificate
+inventory on one side, the revocation database on the other---and
+decoupling them keeps each script focused on a single responsibility.
+
+For unattended execution, the Intermediate CA passphrase is stored in a
+root-owned file with \texttt{0600} permissions and supplied to OpenSSL via
+the \texttt{-passin file:} option. This is a deliberate trade-off: a
+passphrase file on the same machine reduces protection against host
+compromise, but it allows the entire renewal pipeline to run without human
+intervention. In a production environment, the Intermediate CA key would
+be stored in a Hardware Security Module or a Key Management Service so
+that the key material never leaves the secure boundary.
 
 \begin{alertbox}
 \footnotesize\textbf{Operational note:} in mTLS deployments, \emph{both}
-the server and client certificates must be renewed before expiry. An expired
-client certificate causes the same handshake failure as an invalid one.
-Automated renewal must therefore cover the full certificate inventory, not
-just the server side.
+the server and client certificates must be renewed before expiry. An
+expired client certificate causes the same handshake failure as an invalid
+one. The script therefore iterates over the complete certificate inventory
+rather than only the server side, and each entry declares its own
+extension block (\texttt{server\_cert} or \texttt{client\_cert}) so that
+the correct Extended Key Usage is preserved across renewals.
 \end{alertbox}
 
 \subsection{Limitations of mTLS}
