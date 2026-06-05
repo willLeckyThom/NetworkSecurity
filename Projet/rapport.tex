@@ -203,6 +203,8 @@ by mTLS, increasingly critical in modern deployments.
   \item \textbf{CA Deployment on Linux:} setting up root and intermediate CAs,
         issuing end-entity certificates, and configuring revocation.
   \item \textbf{Mutual TLS:} theory, handshake mechanics, and use cases.
+  \item \textbf{Limitations of PKI:} structural and operational weaknesses
+        illustrated by documented real-world incidents.
 \end{enumerate}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -735,7 +737,7 @@ Always include \texttt{subjectAltName} in server certificate configurations.
 \end{alertbox}
 
 % ─────────────────────────────────────────────────────────────────────────────
-% NEW SECTION — MUTUAL TLS
+% MUTUAL TLS
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Mutual TLS (mTLS)}
 
@@ -927,39 +929,176 @@ must be carefully managed:
 \end{itemize}
 
 % ─────────────────────────────────────────────────────────────────────────────
-\begin{thebibliography}{9}
+% LIMITATIONS OF THE PKI MODEL (NEW SECTION)
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Limitations of the PKI Model}
 
-\bibitem{rfc5280}
-D.~Cooper et al.,
-\textit{Internet X.509 PKI Certificate and CRL Profile},
-RFC~5280, IETF, May~2008.
+Despite the strong cryptographic foundations of X.509 and the maturity of
+modern PKI tooling, the global Certificate Authority ecosystem has suffered
+recurring failures over the past fifteen years. The limitations discussed
+below are not theoretical: each is illustrated by a well-documented
+real-world incident, and each motivated specific design choices in our
+own deployment. They show that the weak points of PKI lie not in its
+mathematics but at its edges---operations, human processes, governance,
+and revocation infrastructure.
 
-\bibitem{rfc2818}
-E.~Rescorla,
-\textit{HTTP Over TLS},
-RFC~2818, IETF, May~2000.
+\subsection{Technical Compromise of a CA}
 
-\bibitem{rfc6960}
-S.~Santesson et al.,
-\textit{Online Certificate Status Protocol --- OCSP},
-RFC~6960, IETF, June~2013.
+A legitimate CA can be breached through poor operational security: outdated
+servers, insufficient network segmentation, or weak monitoring. If a single
+CA present in the browser trust store is compromised, an attacker can forge
+\emph{valid certificates for any domain} (Google, banks, governments), and
+victim browsers will accept them silently. This enables large-scale
+man-in-the-middle attacks on HTTPS.
 
-\bibitem{rfc8446}
-E.~Rescorla,
-\textit{The Transport Layer Security (TLS) Protocol Version 1.3},
-RFC~8446, IETF, August~2018.
+\textbf{Case study --- DigiNotar (2011).} The Dutch CA DigiNotar was
+breached through an obsolete public-facing web server and insufficient
+internal network segmentation. The attacker issued \textbf{531 fraudulent
+certificates}, including a wildcard \texttt{*.google.com}, which was used
+to intercept the Gmail traffic of approximately \textbf{300{,}000 Iranian
+citizens} in what was likely a state-sponsored MITM operation. All major
+browsers distrusted DigiNotar within weeks, and the company \textbf{filed
+for bankruptcy in September 2011}\footnote{\url{https://en.wikipedia.org/wiki/DigiNotar}; see also Fox-IT, \textit{Operation Black Tulip: Report of the investigation into the DigiNotar Certificate Authority breach}, 2012.}.
 
-\bibitem{pkcs10}
-RSA Laboratories,
-\textit{PKCS \#10: Certification Request Syntax Standard},
-Version~1.7, 2000.
+This incident demonstrates that cryptographic strength offers no protection
+against poor operational hygiene. It is precisely the reason our deployment
+keeps the Root CA \emph{offline} and uses an online Intermediate CA only
+for day-to-day operations.
 
-\bibitem{itu509}
-ITU-T,
-\textit{Recommendation X.509: The Directory --- Public-Key and
-Attribute Certificate Frameworks}, 2019.
+\subsection{Commercial Pressure and ``Too Big to Fail'' CAs}
 
-\end{thebibliography}
+Public CAs are commercial enterprises that sell certificates at scale, and
+this economic pressure can lead to lax validation, poorly supervised
+resellers, and the dismissal of internal errors. When a CA becomes dominant
+on the market, sanctioning it becomes politically and technically expensive:
+a significant fraction of the web could be rendered inaccessible overnight.
+
+\textbf{Case study --- Symantec distrust (2017--2018).} Symantec, together
+with its VeriSign, Thawte, and GeoTrust brands, issued \textbf{more than
+30\% of all valid web certificates} at the time. A Google Chrome
+investigation initially identified 127 misissued certificates, but the
+total grew to at least \textbf{30{,}000} over several years, many of them
+emitted through unsupervised resellers. Google announced a progressive
+distrust of Symantec certificates in Chrome 66 and Chrome 70, and Symantec
+ultimately \textbf{sold its entire CA division to DigiCert for approximately
+\$1 billion}\footnote{\url{https://www.thesslstore.com/blog/google-chrome-distrust-symantec-ssl-certificates/}; original announcement on the Chromium blog: \textit{Intent to Deprecate and Remove: Trust in existing Symantec-issued Certificates}.}.
+
+This case illustrates that the commercial PKI model has a structural
+conflict of interest, and that market concentration weakens the ecosystem's
+ability to sanction misbehaviour.
+
+\subsection{Revocation Is Technically Broken}
+
+The two main mechanisms for checking whether a certificate has been revoked,
+CRL and OCSP, have flaws that make them effectively unusable on the public
+web:
+
+\begin{itemize}
+  \item \textbf{CRL} files list every revoked certificate and can grow to
+        several megabytes, making them impractical to download on every
+        connection.
+  \item \textbf{OCSP} performs a real-time query to the CA, which is slow
+        and leaks the user's browsing history to the CA \cite{rfc6960}.
+  \item If the OCSP request fails---due to an outage or to an attacker
+        actively blocking it---browsers \textbf{fail soft}: they accept the
+        certificate anyway to avoid breaking the web. A network-positioned
+        attacker can therefore neutralise revocation simply by dropping the
+        OCSP request.
+\end{itemize}
+
+\textbf{Case study --- Heartbleed (April 2014).} The Heartbleed vulnerability
+in OpenSSL exposed TLS private keys on approximately \textbf{17\% of HTTPS
+servers worldwide}, forcing thousands of operators to revoke their
+certificates. However, Chrome had already disabled OCSP by default, and its
+alternative mechanism (CRLSets) contained only about \textbf{24{,}000
+entries out of more than 2 million revoked certificates}---roughly
+\textbf{98\% ignored}\footnote{\url{https://www.netcraft.com/blog/certificate-revocation-why-browsers-remain-affected-by-heartbleed/}; see also A.~Langley, \textit{Revocation doesn't work}, ImperialViolet blog, March 2011: \url{https://www.imperialviolet.org/2011/03/18/revocation.html}}. An
+attacker who had stolen a private key could keep using it even after formal
+revocation.
+
+This connects directly to Section~4 (CRL configuration) and motivates the
+broader industry trend of shortening certificate validity periods (398 days,
+then 90 days, with 47 days now proposed), as well as the automatic renewal
+script described in Section~5.
+
+\subsection{Default Trust and CA Governance}
+
+Modern browser trust stores contain 150--200 CAs that users trust
+implicitly, without ever being asked to choose. Several of these CAs operate
+under jurisdictions that can compel them to cooperate. Unlike the previous
+case of an accidentally compromised CA, here the CA itself is the threat:
+it may \emph{deliberately} issue fraudulent certificates, or be forced to,
+and the bare X.509 model provides no native mechanism to restrict which CA
+may issue for which domain.
+
+\textbf{Case study --- CNNIC / MCS Holdings (2015).} CNNIC, China's official
+CA, was present in every major trust store. CNNIC issued an
+\textbf{intermediate certificate to MCS Holdings}, an Egyptian company with
+no legitimate CA infrastructure, and \textbf{without any name constraint},
+meaning MCS could issue certificates for arbitrary domains. MCS produced
+\textbf{fake Google certificates} and installed them in a corporate firewall
+to intercept its employees' encrypted traffic. The incident was detected
+through \textbf{Certificate Transparency}, after which Google and Mozilla
+distrusted CNNIC\footnote{\url{https://security.googleblog.com/2015/03/maintaining-digital-certificate-security.html}; see also \url{https://en.wikipedia.org/wiki/CNNIC\#Issuance_of_fake_certificates}}.
+
+This case shows that ``default'' trust is a structural weakness of the
+model. It directly motivated \textbf{Certificate Transparency} (RFC~6962),
+which forces CAs to publish every issued certificate to public,
+append-only logs, making large-scale misissuance detectable.
+
+\subsection{Human Factor: Employees and Resellers}
+
+CA security ultimately depends on humans: administrators, employees,
+resellers. All cryptographic safeguards are bypassed if an administrative
+account is phished or if a partner reuses credentials. In practice, attacks
+on CAs almost always exploit the human factor rather than break the
+underlying cryptography.
+
+\textbf{Case study --- ComodoHacker (2011).} A solo attacker calling
+themselves ``ComodoHacker'' compromised a \textbf{Comodo reseller account
+based in Italy} by stealing valid credentials. There was no sophisticated
+exploit and no cryptographic break---only a poorly protected account at a
+business partner. The attacker issued \textbf{nine fraudulent certificates}
+for Google, Yahoo, Skype, Mozilla, and login.live.com, and claimed the
+operation was politically motivated, drawing comparisons with the later
+DigiNotar attack\footnote{\url{https://en.wikipedia.org/wiki/Comodo_Cybersecurity\#Certificate_hacking}; see also Mozilla Security Blog, \textit{Comodo Certificate Issue Follow-up}, March 2011.}.
+
+The modern response to this class of attack relies on mandatory multi-factor
+authentication, strict reseller audits, and real-time monitoring of
+certificate issuance, complemented by Certificate Transparency logs as a
+public check.
+
+\subsection{Operational Errors on the Operator Side}
+
+Even in the absence of any attack, organisations routinely compromise
+themselves: forgotten renewals, leaked private keys, and TLS
+misconfigurations are common. The larger the deployment---hundreds or
+thousands of certificates---the higher the probability of error.
+
+\textbf{Case study --- Equifax (2017).} The US credit-rating agency Equifax
+used an HTTPS-aware intrusion detection system that inspected encrypted
+traffic for attacks. The internal certificate enabling this inspection
+\textbf{expired and was not renewed for ten months}. During that period,
+the detection tool was effectively blind, and attackers exfiltrated the
+personal data of \textbf{145 million individuals} (Social Security numbers,
+dates of birth, addresses) without triggering any alert. No CA was
+breached, no cryptography was broken---a single forgotten certificate was
+enough\footnote{US House Committee on Oversight and Government Reform, \textit{The Equifax Data Breach}, December 2018, p.~3: \url{https://republicans-oversight.house.gov/wp-content/uploads/2018/12/Equifax-Report.pdf}}.
+
+This is precisely the failure mode that the \textbf{automatic renewal
+script} described in Section~5 is designed to prevent, and it is also the
+philosophy behind tools such as \texttt{certbot} for Let's Encrypt.
+
+\begin{alertbox}
+\footnotesize\textbf{Synthesis:} the recurring pattern across these
+incidents is that PKI breaks at its edges---operational hygiene, human
+processes, governance, and revocation infrastructure---rather than in its
+mathematical core. The architectural choices in our deployment (offline
+Root CA, automated renewal, scheduled CRL regeneration, restrictive file
+permissions, strict EKU separation between server and client certificates)
+are direct responses to these documented failure modes.
+\end{alertbox}
+
 
 % ─────────────────────────────────────────────────────────────────────────────
 % AI STRATEGY SECTION
@@ -1072,5 +1211,41 @@ active management:
         were always consulted.
   
 \end{itemize}
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{thebibliography}{9}
+
+\bibitem{rfc5280}
+D.~Cooper et al.,
+\textit{Internet X.509 PKI Certificate and CRL Profile},
+RFC~5280, IETF, May~2008.
+
+\bibitem{rfc2818}
+E.~Rescorla,
+\textit{HTTP Over TLS},
+RFC~2818, IETF, May~2000.
+
+\bibitem{rfc6960}
+S.~Santesson et al.,
+\textit{Online Certificate Status Protocol --- OCSP},
+RFC~6960, IETF, June~2013.
+
+\bibitem{rfc8446}
+E.~Rescorla,
+\textit{The Transport Layer Security (TLS) Protocol Version 1.3},
+RFC~8446, IETF, August~2018.
+
+\bibitem{pkcs10}
+RSA Laboratories,
+\textit{PKCS \#10: Certification Request Syntax Standard},
+Version~1.7, 2000.
+
+\bibitem{itu509}
+ITU-T,
+\textit{Recommendation X.509: The Directory --- Public-Key and
+Attribute Certificate Frameworks}, 2019.
+
+\end{thebibliography}
 
 \end{document}
