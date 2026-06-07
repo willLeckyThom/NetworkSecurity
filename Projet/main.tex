@@ -25,6 +25,7 @@
 \usepackage{multicol}
 \usepackage{parskip}
 
+
 % ── Diagrams
 %────────────────────────────────────────────────────────────────────
 \usepackage{tikz}
@@ -57,6 +58,22 @@
   urlcolor=steelblue,
   citecolor=steelblue
 }
+
+% ── Companion Implementation Guide: cross-reference helpers ──────────────────
+% The runnable code (OpenSSL commands, Nginx config, renewal scripts) lives in
+% the companion Markdown "Implementation Guide". To turn the references below
+% into clickable hyperlinks, replace the empty argument of \IGbase with the URL
+% where the guide is hosted (e.g. a GitHub/GitLab "blob" link). Edit the line
+% in place; if you leave it empty, the references still read correctly as plain
+% text (just without a hyperlink). The step anchors follow GitHub's heading
+% convention (lower-case, spaces replaced by hyphens, punctuation removed).
+\makeatletter
+\newcommand{\IGbase}{https://github.com/willLeckyThom/NetworkSecurity/blob/main/Projet/certificate_chain.md}
+\newif\ifIGhref
+\ifx\IGbase\@empty\IGhreffalse\else\IGhreftrue\fi
+\newcommand{\IGdoc}[1]{\ifIGhref\href{\IGbase}{#1}\else#1\fi}% link to the guide (top)
+\newcommand{\IGstep}[2]{\ifIGhref\href{\IGbase\##1}{#2}\else#2\fi}% link to a step anchor
+\makeatother
 
 % ── Section heading styles ────────────────────────────────────────────────────
 \titleformat{\section}
@@ -824,6 +841,11 @@ A standard deployment uses a \textbf{two-tier hierarchy}:
         root key.
 \end{itemize}
 
+The remainder of this section follows a two-tier deployment; the complete,
+runnable procedure---every OpenSSL invocation, the Nginx configuration, and
+the renewal scripts---is provided in the companion \IGdoc{Implementation
+Guide}, to which each subsection below links.
+
 \begin{infobox}
 \footnotesize
 \textbf{Best practice:} generate and store the root CA private key on an
@@ -895,7 +917,9 @@ CA certificates. Store backups in separate physical locations.
 \subsection{Directory Structure}
 
 A well-organized directory structure is essential for auditability. The
-working directory for the root CA should contain the following:
+working directory for the root CA should contain the following (the commands
+that create this layout are given under \IGstep{directory-structure}{Directory
+Structure} in the \IGdoc{Implementation Guide}):
 
 \begin{itemize}
   \item \texttt{certs/} --- issued certificates.
@@ -917,6 +941,8 @@ AES-256 encryption. A self-signed root certificate is then created with a
 long validity period (typically 20 years), using the \texttt{v3\_ca}
 extensions defined in the configuration file. The resulting certificate
 should be verified to confirm that all fields and extensions are correct.
+The exact OpenSSL commands for these operations are listed in
+\IGstep{step-1-configure-the-root-ca}{Steps~1--3 of the Implementation Guide}.
 
 \subsubsection{Step 2 --- Create the Intermediate CA}
 
@@ -927,7 +953,9 @@ signing. The root CA signs the intermediate certificate using the
 \texttt{CA:TRUE} and an appropriate \texttt{pathLenConstraint}. Finally,
 a certificate chain bundle is assembled by concatenating the intermediate
 certificate and the root certificate into a single file, which is provided
-to relying parties during TLS handshakes.
+to relying parties during TLS handshakes. These operations correspond to
+\IGstep{step-4-configure-the-intermediate-ca}{Steps~4--7 of the Implementation
+Guide}.
 
 \subsubsection{Step 3 --- Issue End-Entity Certificates}
 
@@ -938,7 +966,10 @@ the certificate using the \texttt{server\_cert} extensions, which set
 \texttt{CA:FALSE}, restrict key usage to \texttt{digitalSignature} and
 \texttt{keyEncipherment}, and set the Extended Key Usage to
 \texttt{serverAuth}. The signed certificate, private key, and chain bundle
-are then deployed to the web server (e.g.\ Nginx or Apache).
+are then deployed to the web server (e.g.\ Nginx or Apache). The server- and
+client-certificate commands are given in
+\IGstep{step-8-issue-a-server-certificate}{Steps~8--9 of the Implementation
+Guide}.
 
 \subsubsection{Step 4 --- Configure Revocation (CRL \& OCSP)}
 
@@ -947,7 +978,10 @@ An initial CRL is generated and published at the URL specified in the
 certificate must be revoked, it is marked as revoked in the CA database and
 the CRL is regenerated and republished. For real-time revocation queries, an
 OCSP responder is deployed and its URL is included in the
-Authority Information Access (AIA) extension of issued certificates.
+Authority Information Access (AIA) extension of issued certificates. The CRL
+generation, revocation, and distribution commands are provided in
+\IGstep{step-10-generate-the-initial-crl}{Steps~10--12 of the Implementation
+Guide}.
 
 \subsection{Key OpenSSL Configuration}
 
@@ -957,6 +991,12 @@ certificates, including \texttt{CA:TRUE}, key usage for certificate and CRL
 signing, and key identifier extensions. The \texttt{[ server\_cert ]}
 section defines end-entity certificate extensions, setting \texttt{CA:FALSE},
 restricting key usage, and requiring a \texttt{subjectAltName} entry.
+
+The complete \texttt{openssl.cnf} files for the root and intermediate CAs,
+including these sections, are reproduced in
+\IGstep{step-1-configure-the-root-ca}{Step~1} and
+\IGstep{step-4-configure-the-intermediate-ca}{Step~4} of the
+\IGdoc{Implementation Guide}.
 
 \begin{alertbox}
 \footnotesize\textbf{SAN is mandatory.} Modern browsers reject certificates
@@ -1025,12 +1065,18 @@ expired validity, revoked status, or missing \texttt{clientAuth} in the EKU
 of the client certificate, the handshake is aborted and the connection is
 rejected.
 
+The server-side configuration that enforces this exchange
+(\texttt{ssl\_verify\_client on}) and the \texttt{curl} tests that validate it
+are given in \IGstep{step-13-configure-nginx-for-mtls}{Steps~13--14 of the
+Implementation Guide}.
+
 \begin{infobox}
 \footnotesize
 \textbf{Key extension:} client certificates used in mTLS must include
 \texttt{clientAuth} in their Extended Key Usage field. In our deployment,
 this is set in the \texttt{[ client\_cert ]} block of
-\texttt{openssl.cnf}.
+\texttt{openssl.cnf} (\IGstep{step-4-configure-the-intermediate-ca}{Step~4}
+of the \IGdoc{Implementation Guide}).
 \end{infobox}
 
 \begin{figure}[H]
@@ -1192,15 +1238,12 @@ this is set in the \texttt{[ client\_cert ]} block of
 
 \subsection{Comparison: TLS vs.\ mTLS}
 
-Table~\ref{tab:tls-mtls} summarizes the key differences between standard
-TLS and mTLS.
-
 \begin{table}[h]
 \centering
 \caption{TLS vs.\ mTLS comparison}
 \label{tab:tls-mtls}
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\columnwidth}{>{\bfseries\footnotesize}p{2.2cm}
+\renewcommand{\arraystretch}{1}
+\begin{tabularx}{\columnwidth}{>{\bfseries\footnotesize}p{2cm}
                                 >{\footnotesize}X
                                 >{\footnotesize}X}
 \toprule
@@ -1259,12 +1302,15 @@ private key is compromised, but they require automated renewal processes to
 avoid service disruption.
 
 In our deployment, renewal is handled by a Bash script executed daily via
-\texttt{cron}, the Linux task scheduler. The script is idempotent: it
-inspects every certificate in its inventory and triggers a renewal only
-when the remaining validity falls below a 30-day threshold, mirroring the
-behaviour of Let's Encrypt's \texttt{certbot}. When renewal is required,
-the script generates a fresh key pair and a new CSR, submits it to the
-Intermediate CA, and verifies the resulting certificate against the chain
+\texttt{cron}, the Linux task scheduler
+(\IGstep{step-17-create-the-renewal-script}{Step~17} of the
+\IGdoc{Implementation Guide}, scheduled in
+\IGstep{step-19-schedule-everything-with-cron}{Step~19}). The script is
+idempotent: it inspects every certificate in its inventory and triggers a
+renewal only when the remaining validity falls below a 30-day threshold,
+mirroring the behaviour of Let's Encrypt's \texttt{certbot}. When renewal is
+required, the script generates a fresh key pair and a new CSR, submits it to
+the Intermediate CA, and verifies the resulting certificate against the chain
 \emph{before} swapping any live files. The previous certificate and key
 are first copied to a timestamped backup directory, and Nginx is reloaded
 only after \texttt{nginx -t} confirms that the new configuration is valid.
@@ -1272,16 +1318,20 @@ If any of these checks fails, the previous certificate remains in place
 and the service is not disrupted.
 
 A separate weekly job regenerates the Certificate Revocation List well
-before its 30-day \texttt{nextUpdate} boundary, since an expired CRL would
-cause Nginx to reject every connection regardless of the validity of the
-end-entity certificates. The two jobs are kept on independent schedules
-because they concern different state---the end-entity certificate
-inventory on one side, the revocation database on the other---and
-decoupling them keeps each script focused on a single responsibility.
+before its 30-day \texttt{nextUpdate} boundary
+(\IGstep{step-18-create-the-crl-refresh-script}{Step~18 of the Implementation
+Guide}), since an expired CRL would cause Nginx to reject every connection
+regardless of the validity of the end-entity certificates. The two jobs are
+kept on independent schedules because they concern different state---the
+end-entity certificate inventory on one side, the revocation database on the
+other---and decoupling them keeps each script focused on a single
+responsibility.
 
 For unattended execution, the Intermediate CA passphrase is stored in a
 root-owned file with \texttt{0600} permissions and supplied to OpenSSL via
-the \texttt{-passin file:} option. This is a deliberate trade-off: a
+the \texttt{-passin file:} option
+(\IGstep{step-16-handle-the-encrypted-intermediate-ca-key}{Step~16 of the
+Implementation Guide}). This is a deliberate trade-off: a
 passphrase file on the same machine reduces protection against host
 compromise, but it allows the entire renewal pipeline to run without human
 intervention. In a production environment, the Intermediate CA key would
@@ -1411,7 +1461,9 @@ revocation.
 This connects directly to Section~4 (CRL configuration) and motivates the
 broader industry trend of shortening certificate validity periods (398 days,
 then 90 days, with 47 days now proposed), as well as the automatic renewal
-script described in Section~5.
+script described in Section~5 and implemented in
+\IGstep{step-17-create-the-renewal-script}{Step~17 of the Implementation
+Guide}.
 
 \subsection{Default Trust and CA Governance}
 
@@ -1478,8 +1530,10 @@ breached, no cryptography was broken---a single forgotten certificate was
 enough\footnote{US House Committee on Oversight and Government Reform, \textit{The Equifax Data Breach}, December 2018, p.~3: \url{https://republicans-oversight.house.gov/wp-content/uploads/2018/12/Equifax-Report.pdf}}.
 
 This is precisely the failure mode that the \textbf{automatic renewal
-script} described in Section~5 is designed to prevent, and it is also the
-philosophy behind tools such as \texttt{certbot} for Let's Encrypt.
+script} described in Section~5
+(\IGstep{step-17-create-the-renewal-script}{Step~17 of the Implementation
+Guide}) is designed to prevent, and it is also the philosophy behind tools
+such as \texttt{certbot} for Let's Encrypt.
 
 \begin{alertbox}
 \footnotesize\textbf{Synthesis:} the recurring pattern across these
@@ -1519,6 +1573,8 @@ executed and tested on the actual deployment environment. Understanding the
 output was a requirement: if a command worked but its behaviour was not
 fully understood, it was not accepted. This ensured that the implementation
 reflects genuine understanding rather than blind execution of generated code.
+The resulting, fully tested procedure is documented end-to-end in the
+companion \IGdoc{Implementation Guide}.
 
 \subsection{Report Writing}
 
