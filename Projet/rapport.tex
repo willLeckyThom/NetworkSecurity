@@ -21,8 +21,25 @@
 \usepackage{listings}
 \usepackage{courier}
 \usepackage{caption}
+\usepackage{float}
 \usepackage{multicol}
 \usepackage{parskip}
+
+% ── Diagrams
+%────────────────────────────────────────────────────────────────────
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, shapes.geometric, calc, fit}
+\definecolor{coralRed}{RGB}{216,90,48}
+\definecolor{amberOrng}{RGB}{186,117,23}
+\definecolor{tealGreen}{RGB}{29,158,117}
+\definecolor{purpleVio}{RGB}{127,119,221}
+\definecolor{softGreen}{RGB}{99,153,34}
+\definecolor{coralLight}{RGB}{250,236,231}
+\definecolor{amberLight}{RGB}{250,238,218}
+\definecolor{tealLight}{RGB}{225,245,238}
+\definecolor{purpleLight}{RGB}{238,237,254}
+\definecolor{softGreenLight}{RGB}{234,243,222}
+%────────────────────────────────────────────────────────────────────
 
 % ── Colors ────────────────────────────────────────────────────────────────────
 \definecolor{navyblue}{RGB}{31,56,100}
@@ -553,6 +570,7 @@ step opens the door to attacks such as MITM or certificate substitution.
 
 \subsubsection{Digital Signature Verification}
 
+
 Every certificate is digitally signed by its issuing CA. The signature proves
 that the CA has validated the certificate's contents. First, the certificate's
 signed data and signature are extracted. The issuer's public key is then used
@@ -579,6 +597,86 @@ is reached. For each certificate in the chain, the verifier must:
   \item Confirm the root CA exists in the client's trust store.
 \end{enumerate}
 
+\begin{figure}[H]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+      font=\footnotesize,
+    cert/.style={
+        rectangle, rounded corners=3pt, draw, line width=0.4pt,
+        minimum width=46mm, minimum height=12mm, align=center,
+        inner sep=2pt
+    },
+    eecert/.style ={cert, fill=tealLight,  draw=tealGreen,  text=tealGreen!80!black},
+    intcert/.style={cert, fill=amberLight, draw=amberOrng,  text=amberOrng!80!black},
+    rootcert/.style={cert, fill=coralLight, draw=coralRed,  text=coralRed!85!black},
+    checks/.style={
+        rectangle, rounded corners=3pt, draw=purpleVio, line width=0.4pt,
+        fill=purpleLight, text=purpleVio!85!black,
+        minimum width=32mm, align=left, inner sep=3pt, font=\scriptsize
+    },
+    sigarr/.style={->, thick, draw=darkgray},
+    arrlbl/.style={font=\scriptsize, text=darkgray, midway, fill=white, inner sep=1pt},
+    leader/.style={dashed, draw=purpleVio!70, line width=0.3pt}
+]
+ 
+% Trust anchor envelope (drawn first, behind the root box)
+\node[draw=coralRed!60, dashed, line width=0.5pt, rounded corners=4pt,
+      minimum width=58mm, minimum height=20mm,
+      label={[font=\scriptsize, text=coralRed!85!black]above:Trusted by client OS / browser}]
+      (anchor) at (0,4) {};
+ 
+% Root CA
+\node[rootcert] (root) at (0,4)
+    {\textbf{Root CA (trust anchor)}\\[-1pt]\scriptsize Self-signed, in trust store};
+ 
+% Intermediate CA
+\node[intcert] (interm) at (0,1.6)
+    {\textbf{Intermediate CA}\\[-1pt]\scriptsize \texttt{CA:TRUE}, \texttt{pathlen:0}};
+ 
+% End-entity certificate
+\node[eecert] (leaf) at (0,-0.8)
+    {\textbf{End-entity certificate}\\[-1pt]\scriptsize \texttt{www.cybersec.ulb.ac.be}};
+ 
+% Arrows (leaf -> interm -> root)
+\draw[sigarr] (leaf) -- node[arrlbl]{issued by} (interm);
+\draw[sigarr] (interm) -- node[arrlbl]{issued by} (root);
+ 
+% Checks panels (right side)
+\node[checks, right=8mm of leaf, anchor=west] (cleaf)
+    {\textbf{Leaf checks}\\
+     \textbullet\ Signature\\
+     \textbullet\ Validity dates\\
+     \textbullet\ Hostname (SAN)\\
+     \textbullet\ EKU = \texttt{serverAuth}\\
+     \textbullet\ Not revoked (CRL)};
+ 
+\node[checks, right=8mm of interm, anchor=west] (cint)
+    {\textbf{Intermediate checks}\\
+     \textbullet\ Signature\\
+     \textbullet\ Validity dates\\
+     \textbullet\ \texttt{CA:TRUE}\\
+     \textbullet\ \texttt{pathLenConstraint}\\
+     \textbullet\ Not revoked};
+ 
+\node[checks, right=8mm of root, anchor=west] (croot)
+    {\textbf{Root checks}\\
+     \textbullet\ Self-signature\\
+     \textbullet\ \texttt{CA:TRUE}\\
+     \textbullet\ In trust store\\
+     \textbullet\ Validity dates};
+ 
+% Leader lines from cert -> check panel
+\draw[leader] (leaf.east)   -- (cleaf.west);
+\draw[leader] (interm.east) -- (cint.west);
+\draw[leader] (root.east)   -- (croot.west);
+ 
+\end{tikzpicture}%
+}
+\caption{Certificate chain validation. The verifier starts at the end-entity certificate and walks upward to a trusted root, performing the listed checks at each level. The chain is only as strong as its weakest link: a single failure at any tier invalidates the whole connection.}
+\label{fig:chain-validation}
+\end{figure}
+
 \begin{alertbox}
 \footnotesize\textbf{Security note:} A chain is only as strong as its weakest
 link. If an intermediate CA is compromised, all certificates below it must be
@@ -602,6 +700,75 @@ compromise or expiration. Two main revocation methods exist:
         \emph{OCSP Stapling} allows the server to cache and present a signed
         OCSP response, eliminating client round-trips and improving privacy.
 \end{itemize}
+
+\begin{figure}[H]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+      font=\footnotesize,
+    block/.style={
+        rectangle, rounded corners=3pt, draw, line width=0.4pt,
+        minimum width=38mm, minimum height=9mm, align=center,
+        inner sep=2pt
+    },
+    clientbox/.style={block, fill=tealLight, draw=tealGreen, text=tealGreen!80!black,
+                      minimum width=30mm},
+    crlbox/.style ={block, fill=tealLight,    draw=tealGreen,  text=tealGreen!80!black},
+    ocspbox/.style={block, fill=purpleLight,  draw=purpleVio,  text=purpleVio!85!black},
+    endpt/.style ={block, fill=lightblue!50,  draw=darkgray,
+                   text=darkgray, font=\scriptsize\itshape},
+    procon/.style={block, fill=amberLight,    draw=amberOrng,
+                   text=amberOrng!80!black, align=left,
+                   font=\scriptsize, minimum height=11mm, inner sep=3pt},
+    arr/.style={->, thick, draw=darkgray},
+    arrlbl/.style={font=\scriptsize, text=darkgray, midway, fill=white, inner sep=1pt}
+]
+ 
+% Client at the top center
+\node[clientbox] (cli) at (0,4)
+    {\textbf{Client}\\[-1pt]\scriptsize Verifying a certificate};
+ 
+% ----- LEFT COLUMN: CRL flow -----
+\node[crlbox] (crlhead) at (-3.6, 2.6) {\textbf{CRL approach}};
+\node[crlbox, below=4mm of crlhead] (crl1)
+    {\textbf{1.} Download full CRL\\[-1pt]\scriptsize \texttt{GET /crl/intermediate.crl}};
+\node[crlbox, below=4mm of crl1] (crl2)
+    {\textbf{2.} Search serial locally\\[-1pt]\scriptsize against revoked list};
+\node[endpt, below=4mm of crl2] (crlsrv)
+    {CA CRL endpoint (Nginx)\\
+     \scriptsize signed, refreshed every 30~days};
+\node[procon, below=3mm of crlsrv, minimum width=38mm] (crlpro)
+    {+ offline-friendly after download\\
+     $-$ heavy, can reach several MB};
+ 
+% Arrows for CRL flow
+\draw[arr] (cli.south) .. controls +(-1,-0.5) and +(0,0.5) .. (crl1.north);
+\draw[arr] (crl1) -- (crl2);
+\draw[dashed, draw=darkgray!60] (crl2) -- (crlsrv);
+ 
+% ----- RIGHT COLUMN: OCSP flow -----
+\node[ocspbox] (ocsphead) at (3.6, 2.6) {\textbf{OCSP approach}};
+\node[ocspbox, below=4mm of ocsphead] (ocsp1)
+    {\textbf{1.} Query one serial\\[-1pt]\scriptsize POST to OCSP responder};
+\node[ocspbox, below=4mm of ocsp1] (ocsp2)
+    {\textbf{2.} Signed status reply\\[-1pt]\scriptsize Good | Revoked | Unknown};
+\node[endpt, below=4mm of ocsp2] (ocspsrv)
+    {CA OCSP responder\\
+     \scriptsize can be stapled by the server};
+\node[procon, below=3mm of ocspsrv, minimum width=38mm] (ocsppro)
+    {+ real-time, lightweight per query\\
+     $-$ leaks history, fail-soft on error};
+ 
+% Arrows for OCSP flow
+\draw[arr] (cli.south) .. controls +(1,-0.5) and +(0,0.5) .. (ocsp1.north);
+\draw[arr] (ocsp1) -- (ocsp2);
+\draw[dashed, draw=darkgray!60] (ocsp2) -- (ocspsrv);
+ 
+\end{tikzpicture}%
+}
+\caption{Two revocation-checking strategies compared. The CRL approach (left, used in our deployment) downloads the CA's signed revocation list and matches the certificate's serial number locally. The OCSP approach (right) queries the CA in real time for a single serial. Both are required by the validation steps of Figure~\ref{fig:chain-validation}, and our renewal pipeline regenerates the CRL weekly to avoid the failure mode described in Section~5.}
+\label{fig:crl-vs-ocsp}
+\end{figure}
 
 \subsubsection{Hostname Verification}
 
@@ -663,6 +830,67 @@ A standard deployment uses a \textbf{two-tier hierarchy}:
 air-gapped machine or HSM. Bring it online \emph{only} to sign intermediate
 CA certificates. Store backups in separate physical locations.
 \end{infobox}
+
+\begin{figure}[H]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+      font=\footnotesize,
+    node distance=8mm and 12mm,
+    cabox/.style={
+        rectangle, rounded corners=3pt, draw, line width=0.4pt,
+        minimum width=42mm, minimum height=10mm, align=center,
+        inner sep=2pt
+    },
+    rootnode/.style={cabox, fill=coralLight, draw=coralRed, text=coralRed!85!black},
+    interm/.style ={cabox, fill=amberLight, draw=amberOrng, text=amberOrng!80!black},
+    server/.style ={cabox, fill=tealLight,  draw=tealGreen, text=tealGreen!80!black,
+                    minimum width=36mm},
+    client/.style ={cabox, fill=purpleLight,draw=purpleVio, text=purpleVio!85!black,
+                    minimum width=36mm},
+    enduse/.style ={font=\scriptsize\itshape, text=darkgray},
+    siglabel/.style={font=\scriptsize, text=darkgray},
+    arr/.style={->, thick, draw=darkgray}
+]
+ 
+% Trust anchor (dashed envelope around root)
+\node[rootnode] (root) at (0,0) {\textbf{Root CA}\\[-1pt]\scriptsize Offline, self-signed, 20 years};
+ 
+\node[draw=coralRed!60, dashed, line width=0.5pt, rounded corners=4pt,
+      fit=(root), inner sep=4mm,
+      label={[font=\scriptsize, text=coralRed!85!black]above left:Trust anchor (air-gapped)}] (anchor) {};
+ 
+% Intermediate CA below
+\node[interm, below=14mm of root] (interm)
+    {\textbf{Intermediate CA}\\[-1pt]\scriptsize Online, 10 years, \texttt{pathlen:0}};
+ 
+% End-entity row
+\node[server, below=18mm of interm, xshift=-26mm] (server)
+    {\textbf{Server certificate}\\[-1pt]\scriptsize EKU: \texttt{serverAuth}};
+\node[client, below=18mm of interm, xshift= 26mm] (client)
+    {\textbf{Client certificate}\\[-1pt]\scriptsize EKU: \texttt{clientAuth}};
+ 
+% Arrows
+\draw[arr] (root) -- node[siglabel, right=1pt]{signs} (interm);
+ 
+% Branching arrow from interm to server and client
+\coordinate (branch) at ($(interm.south) + (0,-6mm)$);
+\draw[arr, -] (interm) -- (branch);
+\draw[arr, -] (branch) -| (server.north);
+\draw[arr]   (branch) -| (client.north);
+\node[siglabel, right=2pt of branch] {issues};
+ 
+% Final consumers
+\node[enduse, below=4mm of server] (serveruse) {Nginx (\texttt{www.cybersec.ulb.ac.be})};
+\node[enduse, below=4mm of client] (clientuse) {User / device};
+\draw[arr] (server) -- (serveruse);
+\draw[arr] (client) -- (clientuse);
+ 
+\end{tikzpicture}%
+}
+\caption{Two-tier Certificate Authority architecture. The Root CA is kept offline and only signs the Intermediate CA, which in turn issues server and client end-entity certificates used in our mTLS deployment.}
+\label{fig:two-tier-ca}
+\end{figure}
 
 \subsection{Directory Structure}
 
@@ -749,6 +977,7 @@ client, however, remains anonymous to the server. This is sufficient for
 public-facing websites, where the server does not need to know \emph{who}
 is connecting---only that the communication is confidential.
 
+
 Mutual TLS (mTLS) extends this model to \emph{two-way} authentication.
 Both the server and the client present X.509 certificates, and both verify
 each other's certificate against a trusted CA before the connection is
@@ -797,6 +1026,163 @@ rejected.
 this is set in the \texttt{[ client\_cert ]} block of
 \texttt{openssl.cnf}.
 \end{infobox}
+
+\begin{figure}[H]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+    font=\footnotesize,
+    >={Stealth[length=2mm]},
+    party/.style={
+        rectangle, rounded corners=3pt, draw, line width=0.4pt,
+        minimum width=22mm, minimum height=8mm, align=center,
+        inner sep=2pt
+    },
+    clientbox/.style={party, fill=tealLight, draw=tealGreen, text=tealGreen!80!black},
+    serverbox/.style={party, fill=purpleLight, draw=purpleVio, text=purpleVio!85!black},
+    msg/.style={->, thick, draw=darkgray},
+    msglbl/.style={font=\scriptsize, text=darkgray, midway, fill=white, inner sep=1pt},
+    check/.style={
+        rectangle, rounded corners=2pt, fill=amberLight, draw=amberOrng,
+        line width=0.4pt, text=amberOrng!80!black,
+        align=center, inner sep=2pt, font=\scriptsize
+    },
+    finalbox/.style={
+        rectangle, rounded corners=3pt, fill=softGreenLight, draw=softGreen,
+        line width=0.4pt, text=softGreen!75!black,
+        align=center, inner sep=3pt, minimum width=55mm
+    }
+]
+ 
+% Header parties
+\node[clientbox] (cli) at (0, 0) {\textbf{Client}};
+\node[serverbox] (srv) at (7, 0) {\textbf{Server}};
+ 
+% Named coordinates for the message lines (no more inline calc-coords)
+\coordinate (cli1) at ($(cli.south)+(0,-0.8)$);
+\coordinate (srv1) at ($(srv.south)+(0,-0.8)$);
+\coordinate (cli2) at ($(cli.south)+(0,-1.8)$);
+\coordinate (srv2) at ($(srv.south)+(0,-1.8)$);
+\coordinate (cliv) at ($(cli.south)+(0,-2.6)$);
+\coordinate (cli3) at ($(cli.south)+(0,-5.5)$);
+\coordinate (srv3) at ($(srv.south)+(0,-5.5)$);
+\coordinate (cliend) at ($(cli.south)+(0,-7)$);
+\coordinate (srvend) at ($(srv.south)+(0,-7)$);
+ 
+% Lifelines
+\draw[dashed, draw=darkgray!50] (cli.south) -- (cliend);
+\draw[dashed, draw=darkgray!50] (srv.south) -- (srvend);
+ 
+% Message 1: ClientHello
+\draw[msg] (cli1) -- node[msglbl]{\textbf{1.} ClientHello} (srv1);
+ 
+% Message 2: ServerHello + Certificate + CertificateVerify + Finished
+
+\draw[msg] (srv2) -- node[msglbl,align=center]
+    {\textbf{2.} ServerHello, EncryptedExtensions,\\ 
+     Certificate, CertificateVerify, Finished} (cli2);
+ 
+% Client verification box, positioned relative to cliv coordinate
+\node[check, below=3mm of cliv, anchor=north] (verif)
+    {Client verifies server flight:\\
+     chain, validity, SAN, EKU=\texttt{serverAuth},\\ revocation, CertificateVerify, Finished};
+ 
+% Message 3: Finished
+\draw[msg] (cli3) -- node[msglbl]{\textbf{3.} Finished} (srv3);
+ 
+% Application data
+\node[finalbox] at ($(cli)!0.5!(srv) + (0,-6.7)$)
+    {Encrypted application data\\[-1pt]\scriptsize Symmetric session keys};
+ 
+\end{tikzpicture}%
+}
+\caption{Standard TLS~1.3 handshake. Only the server presents a certificate; the client remains anonymous. The dashed lines represent the client and server lifelines.}
+\label{fig:tls-handshake}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+    font=\footnotesize,
+    >={Stealth[length=2mm]},
+    party/.style={
+        rectangle, rounded corners=3pt, draw, line width=0.4pt,
+        minimum width=22mm, minimum height=8mm, align=center,
+        inner sep=2pt
+    },
+    clientbox/.style={party, fill=tealLight, draw=tealGreen, text=tealGreen!80!black},
+    serverbox/.style={party, fill=purpleLight, draw=purpleVio, text=purpleVio!85!black},
+    msg/.style={->, thick, draw=darkgray},
+    msglbl/.style={font=\scriptsize, text=darkgray, midway, fill=white, inner sep=1pt},
+    check/.style={
+        rectangle, rounded corners=2pt, fill=amberLight, draw=amberOrng,
+        line width=0.4pt, text=amberOrng!80!black,
+        align=center, inner sep=2pt, font=\scriptsize
+    },
+    finalbox/.style={
+        rectangle, rounded corners=3pt, fill=softGreenLight, draw=softGreen,
+        line width=0.4pt, text=softGreen!75!black,
+        align=center, inner sep=3pt, minimum width=55mm
+    }
+]
+ 
+\node[clientbox] (cli) at (0,0) {\textbf{Client}};
+\node[serverbox] (srv) at (7,0) {\textbf{Server}};
+ 
+% Named coordinates
+\coordinate (cli1)  at ($(cli.south)+(0,-0.8)$);
+\coordinate (srv1)  at ($(srv.south)+(0,-0.8)$);
+\coordinate (cli2)  at ($(cli.south)+(0,-1.8)$);
+\coordinate (srv2)  at ($(srv.south)+(0,-1.8)$);
+\coordinate (cliv1) at ($(cli.south)+(0,-2.7)$);
+\coordinate (cli3)  at ($(cli.south)+(0,-5.0)$);
+\coordinate (srv3)  at ($(srv.south)+(0,-5.0)$);
+\coordinate (cli4)  at ($(cli.south)+(0,-5.0)$);
+\coordinate (srv4)  at ($(srv.south)+(0,-5.0)$);
+\coordinate (srvv2) at ($(srv.south)+(0,-5.8)$);
+\coordinate (cliend) at ($(cli.south)+(0,-8.5)$);
+\coordinate (srvend) at ($(srv.south)+(0,-8.5)$);
+ 
+\draw[dashed, draw=darkgray!50] (cli.south) -- (cliend);
+\draw[dashed, draw=darkgray!50] (srv.south) -- (srvend);
+ 
+% Step 1
+\draw[msg] (cli1) -- node[msglbl]{\textbf{1.} ClientHello} (srv1);
+ 
+% Step 2
+
+\draw[msg] (srv2) -- node[msglbl,align=center]
+    {\textbf{2.} ServerHello, EncryptedExtensions,\\ 
+     Certificate, CertificateVerify, Finished} (cli2);
+ 
+% Client verifies server (left side)
+\node[check, below=3mm of cliv1, anchor=north, xshift=-1.5mm] (verif1)
+    {Client verifies server flight:\\
+     chain, SAN, EKU, revocation,\\ 
+     CertificateVerify, Finished};
+ 
+% Step 3: client sends its cert
+\draw[msg] (cli3) -- node[msglbl, align=center]
+    {\textbf{3.} Certificate,\\ CertificateVerify, Finished} (srv3);
+
+
+ 
+% Server verifies client (right side)
+\node[check, below=3mm of srvv2, anchor=north, xshift=1.5mm] (verif2)
+    {Server verifies client flight:\\
+     chain, EKU=\texttt{clientAuth}, revocation,\\
+     CertificateVerify, Finished};
+ 
+% Application data
+\node[finalbox] at ($(cli)!0.5!(srv) + (0,-8)$)
+    {Encrypted application data\\[-1pt]\scriptsize Both parties authenticated};
+ 
+\end{tikzpicture}%
+}
+\caption{Mutual TLS handshake. In addition to the standard TLS exchange, the server issues a \texttt{CertificateRequest}, the client presents its own certificate and a \texttt{CertificateVerify} signature, and the server validates the client certificate against the configured CA chain before deriving session keys.}
+\label{fig:mtls-handshake}
+\end{figure}
 
 \subsection{Comparison: TLS vs.\ mTLS}
 
